@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: starlink_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-starlink_platform}
+      PGDATA: /data/postgres
+    volumes:
+      - postgres_data:/data/postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - starlink_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and session management
+  redis:
+    image: redis:alpine
+    container_name: starlink_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - starlink_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./starlink_api
+      dockerfile: Dockerfile
+    container_name: starlink_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      FLASK_APP: src/main.py
+      FLASK_ENV: ${FLASK_ENV:-production}
+      DATABASE_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-starlink_platform}
+      REDIS_URI: redis://redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-key-change-in-production}
+      INIT_DB: ${INIT_DB:-false}
+    ports:
+      - "5000:5000"
+    networks:
+      - starlink_network
+
+  # Frontend application
+  frontend:
+    build:
+      context: ./frontend/starlink-dashboard
+      dockerfile: Dockerfile
+    container_name: starlink_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - starlink_network
+
+networks:
+  starlink_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+
