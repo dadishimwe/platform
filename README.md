@@ -129,5 +129,5 @@ This project is proprietary and confidential. Unauthorized copying, distribution
 
 ## Support
 
-For support, please contact your account manager or email support@example.com.
+For support, please contact your account manager or email dadishimwe0@gmail.com.
 
